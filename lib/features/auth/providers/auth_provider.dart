@@ -30,10 +30,26 @@ class AuthNotifier extends Notifier<AsyncValue<UserModel?>> {
         email: email.trim(),
         password: password,
       );
-      final doc = await FirebaseService.collection(AppConstants.usersCollection)
-          .doc(cred.user!.uid)
-          .get();
-      return doc.exists ? UserModel.fromFirestore(doc) : null;
+      final uid = cred.user!.uid;
+      final ref = FirebaseService.collection(AppConstants.usersCollection).doc(uid);
+      final doc = await ref.get();
+
+      if (!doc.exists) {
+        // Auto-create user doc on first login
+        await ref.set({
+          'name': cred.user!.displayName ?? email.split('@').first,
+          'email': email.trim(),
+          'phone': cred.user!.phoneNumber ?? '',
+          'role': AppConstants.roleSupplier,
+          'isActive': true,
+          'photoUrl': cred.user!.photoURL,
+          'createdAt': FirebaseService.serverTimestamp,
+        });
+        final created = await ref.get();
+        return UserModel.fromFirestore(created);
+      }
+
+      return UserModel.fromFirestore(doc);
     });
   }
 

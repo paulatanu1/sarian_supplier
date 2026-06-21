@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/extensions.dart';
@@ -32,11 +31,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _emailCtrl.text,
           _passCtrl.text,
         );
+    // GoRouter redirect handles navigation on success.
+    // Only act if widget is still mounted (i.e. login failed).
+    if (!mounted) return;
     final state = ref.read(authNotifierProvider);
-    if (state.hasError && mounted) {
+    if (state.hasError) {
       context.showSnack(state.error.toString(), isError: true);
-    } else if (mounted) {
-      context.go('/dashboard');
     }
   }
 

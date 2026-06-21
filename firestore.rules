@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── helpers ────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuth() && userRole() == 'admin';
+    }
+
+    function isAdminOrSalesRep() {
+      return isAuth() && userRole() in ['admin', 'sales_rep'];
+    }
+
+    // ── users ──────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── products ───────────────────────────────────────────────
+    match /products/{productId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── orders ─────────────────────────────────────────────────
+    match /orders/{orderId} {
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAdminOrSalesRep();
+      allow delete: if isAdmin();
+    }
+
+    // ── suppliers ──────────────────────────────────────────────
+    match /suppliers/{supplierId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── categories ─────────────────────────────────────────────
+    match /categories/{categoryId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+  }
+}

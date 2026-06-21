@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "611514833480",
+    "project_id": "sarian-supplier",
+    "storage_bucket": "sarian-supplier.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:611514833480:android:ebc40f4754f2438244567d",
+        "android_client_info": {
+          "package_name": "com.sarianhealthcare.sarian_supplier"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCfST1NdDSStRIDMErk8FRad-5QMt8IIbY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
