@@ -3,59 +3,57 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── helpers ────────────────────────────────────────────────
-    function isAuth() {
-      return request.auth != null;
-    }
+    // ── helpers ────────────────────────────────────────────────────────
+    function isAuth()  { return request.auth != null; }
+    function uid()     { return request.auth.uid; }
+    function isOwner(id) { return isAuth() && uid() == id; }
 
-    function isOwner(uid) {
-      return isAuth() && request.auth.uid == uid;
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
     }
+    function role()    { return userDoc().role; }
+    function isAdmin() { return isAuth() && role() == 'admin'; }
+    function isUser()  { return isAuth() && role() == 'user'; }
 
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    function isAdmin() {
-      return isAuth() && userRole() == 'admin';
-    }
-
-    function isAdminOrSalesRep() {
-      return isAuth() && userRole() in ['admin', 'sales_rep'];
-    }
-
-    // ── users ──────────────────────────────────────────────────
+    // ── users ──────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
+      allow read:   if isOwner(uid) || isAdmin();
       allow create: if isOwner(uid);
       allow update: if isOwner(uid) || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // ── products ───────────────────────────────────────────────
+    // ── products ───────────────────────────────────────────────────────
     match /products/{productId} {
-      allow read: if isAuth();
+      allow read:  if isAuth();
       allow write: if isAdmin();
     }
 
-    // ── orders ─────────────────────────────────────────────────
+    // ── categories ─────────────────────────────────────────────────────
+    match /categories/{categoryId} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── orders ─────────────────────────────────────────────────────────
     match /orders/{orderId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAdminOrSalesRep();
+      allow read:   if isAuth() &&
+                       (isAdmin() ||
+                        resource.data.userId == uid());
+      allow create: if isUser();
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // ── suppliers ──────────────────────────────────────────────
-    match /suppliers/{supplierId} {
-      allow read: if isAuth();
-      allow write: if isAdmin();
+    // ── cart (user-specific sub-collection) ───────────────────────────
+    match /users/{uid}/cart/{productId} {
+      allow read, write: if isOwner(uid);
     }
 
-    // ── categories ─────────────────────────────────────────────
-    match /categories/{categoryId} {
-      allow read: if isAuth();
-      allow write: if isAdmin();
+    // ── notification queue (written by app, read by Cloud Function) ────
+    match /notifications/{docId} {
+      allow create: if isAuth();
+      allow read, update, delete: if isAdmin();
     }
   }
 }
