@@ -18,7 +18,8 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  await FcmService.init();
-
   runApp(const ProviderScope(child: SarianApp()));
+
+  // Init FCM AFTER runApp so it never blocks the splash screen
+  FcmService.init();
 }

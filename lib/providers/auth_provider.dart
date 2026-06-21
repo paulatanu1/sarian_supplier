@@ -10,8 +10,12 @@ final firebaseUserProvider = StreamProvider<User?>(
 );
 
 final appUserProvider = StreamProvider<AppUser?>((ref) {
-  final uid = ref.watch(firebaseUserProvider).asData?.value?.uid;
-  if (uid == null) return const Stream.empty();
+  final firebaseUser = ref.watch(firebaseUserProvider);
+  // Still loading Firebase auth state — don't emit yet
+  if (firebaseUser.isLoading) return const Stream.empty();
+  final uid = firebaseUser.asData?.value?.uid;
+  // Not logged in — emit null immediately so router/splash can navigate
+  if (uid == null) return Stream.value(null);
   return ref.read(authRepoProvider).userStream(uid);
 });
 

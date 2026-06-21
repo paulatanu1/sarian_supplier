@@ -28,11 +28,13 @@ final _userShellKey  = GlobalKey<NavigatorState>(debugLabel: 'user-shell');
 final _adminShellKey = GlobalKey<NavigatorState>(debugLabel: 'admin-shell');
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authAsync = ref.watch(appUserProvider);
-
-  return GoRouter(
+  // Stable router instance — refresh it when auth state changes
+  final router = GoRouter(
     initialLocation: '/',
     redirect: (ctx, state) {
+      final authAsync = ref.read(appUserProvider);
+
+      // Auth still loading → stay on splash
       if (authAsync.isLoading) return null;
 
       final user    = authAsync.asData?.value;
@@ -40,20 +42,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc      = state.matchedLocation;
       final onPublic = loc == '/' || loc == '/login';
 
-      if (!loggedIn) return onPublic ? null : '/login';
+      if (!loggedIn) return onPublic ? '/login' : '/login';
 
-      // Admin
       if (user.isAdmin) {
         if (loc.startsWith('/admin')) return null;
-        return '/admin';
+        return '/admin/orders';
       }
 
-      // User — profile not completed
       if (!user.profileCompleted) {
         return loc == '/setup' ? null : '/setup';
       }
 
-      // User — profile complete
       if (onPublic || loc == '/setup') return '/home';
       return null;
     },
@@ -76,7 +75,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (ctx, s) => OrderDetailScreen(orderId: s.pathParameters['id']!),
+                builder: (ctx, s) =>
+                    OrderDetailScreen(orderId: s.pathParameters['id']!),
               ),
             ],
           ),
@@ -90,14 +90,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         navigatorKey: _adminShellKey,
         builder: (ctx, state, child) => AdminShell(child: child),
         routes: [
-          GoRoute(path: '/admin', redirect: (ctx, _) => '/admin/orders'),
-          GoRoute(path: '/admin/dashboard', builder: (ctx, _) => const AdminDashboardScreen()),
+          GoRoute(
+            path: '/admin',
+            redirect: (ctx, _) => '/admin/orders',
+          ),
+          GoRoute(
+            path: '/admin/dashboard',
+            builder: (ctx, _) => const AdminDashboardScreen(),
+          ),
           GoRoute(
             path: '/admin/products',
             builder: (ctx, _) => const AdminProductsScreen(),
             routes: [
-              GoRoute(path: 'add',        builder: (ctx, _)  => const AddEditProductScreen()),
-              GoRoute(path: ':id/edit',   builder: (ctx, s)  => AddEditProductScreen(productId: s.pathParameters['id'])),
+              GoRoute(
+                path: 'add',
+                builder: (ctx, _) => const AddEditProductScreen(),
+              ),
+              GoRoute(
+                path: ':id/edit',
+                builder: (ctx, s) =>
+                    AddEditProductScreen(productId: s.pathParameters['id']),
+              ),
             ],
           ),
           GoRoute(
@@ -106,7 +119,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':id',
-                builder: (ctx, s) => AdminOrderDetailScreen(orderId: s.pathParameters['id']!),
+                builder: (ctx, s) =>
+                    AdminOrderDetailScreen(orderId: s.pathParameters['id']!),
               ),
             ],
           ),
@@ -114,10 +128,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/admin/users',
             builder: (ctx, _) => const AdminUsersScreen(),
             routes: [
-              GoRoute(path: 'new', builder: (ctx, _) => const CreateUserScreen()),
+              GoRoute(
+                path: 'new',
+                builder: (ctx, _) => const CreateUserScreen(),
+              ),
             ],
           ),
-          GoRoute(path: '/admin/reports', builder: (ctx, _) => const AdminReportsScreen()),
+          GoRoute(
+            path: '/admin/reports',
+            builder: (ctx, _) => const AdminReportsScreen(),
+          ),
         ],
       ),
     ],
@@ -125,4 +145,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       body: Center(child: Text('Page not found: ${s.error}')),
     ),
   );
+
+  // Refresh router whenever auth state changes
+  ref.listen(appUserProvider, (prev, next) => router.refresh());
+
+  return router;
 });

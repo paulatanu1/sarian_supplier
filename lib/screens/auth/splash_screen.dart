@@ -15,23 +15,46 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late final AnimationController _ctrl =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
         ..forward();
-  late final Animation<double> _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
   late final Animation<double> _scale = Tween(begin: 0.7, end: 1.0)
       .animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _navigate(AsyncValue<dynamic> authState) {
+    if (!mounted) return;
+    if (authState.isLoading) return;
+
+    final user = authState.asData?.value;
+    if (user == null) {
+      context.go('/login');
+    } else if (user.isAdmin) {
+      context.go('/admin/orders');
+    } else if (!user.profileCompleted) {
+      context.go('/setup');
+    } else {
+      context.go('/home');
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Check auth state once the frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigate(ref.read(appUserProvider));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(appUserProvider, (_, next) {
-      if (next.isLoading) return;
-      final user = next.asData?.value;
-      if (user == null)                          return context.go('/login');
-      if (user.isAdmin)                          return context.go('/admin');
-      if (!user.profileCompleted)                return context.go('/setup');
-      context.go('/home');
-    });
+    // Also react to auth state changes (e.g. Firestore doc arrives after init)
+    ref.listen(appUserProvider, (_, next) => _navigate(next));
 
     return Scaffold(
       body: Container(
@@ -53,7 +76,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 20)],
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)],
                   ),
                   child: const Icon(Icons.local_pharmacy_rounded,
                       size: 52, color: AppColors.primary),
@@ -66,8 +89,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 const Text('Supplier Portal',
                     style: TextStyle(color: Colors.white70, fontSize: 15)),
                 const SizedBox(height: 56),
-                const CircularProgressIndicator(
-                    color: Colors.white, strokeWidth: 2),
+                const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
               ]),
             ),
           ),

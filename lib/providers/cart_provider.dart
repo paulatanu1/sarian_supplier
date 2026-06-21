@@ -8,7 +8,7 @@ final cartRepoProvider = Provider((_) => CartRepository());
 
 final cartProvider = StreamProvider<List<CartItem>>((ref) {
   final uid = ref.watch(appUserProvider).asData?.value?.id;
-  if (uid == null) return const Stream.empty();
+  if (uid == null) return Stream.value([]);
   return ref.read(cartRepoProvider).cartStream(uid);
 });
 
