@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Release signing — never commit these
+/android/key.properties
+/android/app/*.jks
+/android/app/*.keystore
+
+# Firebase / GCP credentials — never commit
+scripts/service-account.json
+scripts/*-key.json

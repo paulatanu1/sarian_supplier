@@ -45,7 +45,17 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen>
           itemCount: 5,
           itemBuilder: (ctx, _) => const OrderCardSkeleton(),
         ),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.wifi_off_rounded, size: 56, color: AppColors.textSecondary),
+          const SizedBox(height: 12),
+          const Text('Unable to load orders', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+          const SizedBox(height: 6),
+          const Text('Please check your connection and try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ]),
+      ),
         data: (orders) {
           final current  = orders.where((o) => ['pending','accepted','processing'].contains(o.status)).toList();
           final upcoming = orders.where((o) => o.status == 'dispatched').toList();
@@ -79,13 +89,10 @@ class _OrderList extends StatelessWidget {
         Text(emptyMsg, style: context.textTheme.bodyLarge),
       ]));
     }
-    return RefreshIndicator(
-      onRefresh: () async {},
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: orders.length,
-        itemBuilder: (_, i) => _OrderCard(order: orders[i]),
-      ),
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: orders.length,
+      itemBuilder: (_, i) => _OrderCard(order: orders[i]),
     );
   }
 }
@@ -127,7 +134,7 @@ class _OrderCard extends StatelessWidget {
           ],
           const Divider(height: 20),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(order.totalAmount.inr,
+            Text('${order.totalItems} items',
                 style: context.textTheme.titleMedium
                     ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
             Row(children: [

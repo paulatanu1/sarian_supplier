@@ -9,9 +9,6 @@ class ProductModel {
   final String  category;
   final String  description;
   final String? imageUrl;
-  final double  mrp;
-  final double  tradePrice;
-  final int     stockQty;
   final bool    isActive;
   final DateTime updatedAt;
 
@@ -23,16 +20,11 @@ class ProductModel {
     required this.category,
     required this.description,
     this.imageUrl,
-    required this.mrp,
-    required this.tradePrice,
-    required this.stockQty,
     required this.isActive,
     required this.updatedAt,
   });
 
-  bool get inStock => stockQty > 0;
-  double get margin => mrp > 0 ? ((mrp - tradePrice) / mrp) * 100 : 0;
-  String get packSize => '';          // kept for migration compatibility
+  bool get inStock => true;
 
   factory ProductModel.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
@@ -44,9 +36,6 @@ class ProductModel {
       category:    d['category']    ?? '',
       description: d['description'] ?? '',
       imageUrl:    d['imageUrl'],
-      mrp:         (d['mrp']        ?? 0).toDouble(),
-      tradePrice:  (d['tradePrice'] ?? 0).toDouble(),
-      stockQty:    (d['stockQty']   ?? 0).toInt(),
       isActive:    d['isActive']    ?? true,
       updatedAt:   tsToDate(d['updatedAt']) ?? DateTime.now(),
     );
@@ -59,9 +48,6 @@ class ProductModel {
     'category':    category,
     'description': description,
     'imageUrl':    imageUrl,
-    'mrp':         mrp,
-    'tradePrice':  tradePrice,
-    'stockQty':    stockQty,
     'isActive':    isActive,
     'updatedAt':   FieldValue.serverTimestamp(),
   };
@@ -73,9 +59,6 @@ class ProductModel {
     String?  category,
     String?  description,
     String?  imageUrl,
-    double?  mrp,
-    double?  tradePrice,
-    int?     stockQty,
     bool?    isActive,
   }) =>
       ProductModel(
@@ -86,9 +69,6 @@ class ProductModel {
         category:    category    ?? this.category,
         description: description ?? this.description,
         imageUrl:    imageUrl    ?? this.imageUrl,
-        mrp:         mrp         ?? this.mrp,
-        tradePrice:  tradePrice  ?? this.tradePrice,
-        stockQty:    stockQty    ?? this.stockQty,
         isActive:    isActive    ?? this.isActive,
         updatedAt:   updatedAt,
       );

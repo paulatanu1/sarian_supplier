@@ -41,8 +41,6 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
     final total     = filtered.length;
     final delivered = filtered.where((o) => o.status == 'delivered').length;
     final pending   = filtered.where((o) => o.status == 'pending').length;
-    final revenue   = filtered.where((o) => o.status == 'delivered')
-        .fold<double>(0, (s, o) => s + o.totalAmount);
 
     // Top products
     final productMap = <String, int>{};
@@ -100,20 +98,13 @@ class _AdminReportsScreenState extends ConsumerState<AdminReportsScreen> {
           const SizedBox(height: 16),
 
           // Summary
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.5,
-            children: [
-              _Card('Total Orders',  '$total',     AppColors.info),
-              _Card('Delivered',     '$delivered', AppColors.success),
-              _Card('Pending',       '$pending',   AppColors.warning),
-              _Card('Revenue',       revenue.inr,  AppColors.primary),
-            ],
-          ),
+          Row(children: [
+            Expanded(child: _Card('Total Orders', '$total',     AppColors.info)),
+            const SizedBox(width: 10),
+            Expanded(child: _Card('Delivered',    '$delivered', AppColors.success)),
+            const SizedBox(width: 10),
+            Expanded(child: _Card('Pending',      '$pending',   AppColors.warning)),
+          ]),
           const SizedBox(height: 24),
 
           // Monthly line chart
@@ -276,17 +267,19 @@ class _Card extends StatelessWidget {
   const _Card(this.label, this.value, this.color);
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
+    padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: color.withValues(alpha: 0.2)),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: context.textTheme.bodySmall),
+        mainAxisSize: MainAxisSize.min, children: [
+      Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: context.textTheme.bodySmall),
+      const SizedBox(height: 6),
       Text(value,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
           maxLines: 1, overflow: TextOverflow.ellipsis),
     ]),
   );

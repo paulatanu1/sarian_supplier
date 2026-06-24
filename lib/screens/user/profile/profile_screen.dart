@@ -11,9 +11,9 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user      = ref.watch(appUserProvider).asData?.value;
-    final themeMode = ref.watch(themeModeProvider);
-    final isDark    = themeMode == ThemeMode.dark;
+    final user   = ref.watch(appUserProvider).asData?.value;
+    ref.watch(themeModeProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
@@ -95,14 +95,14 @@ class ProfileScreen extends ConsumerWidget {
                     onTap: () async {
                       final ok = await showDialog<bool>(
                         context: context,
-                        builder: (_) => AlertDialog(
+                        builder: (dialogCtx) => AlertDialog(
                           title: const Text('Sign Out'),
                           content: const Text('Are you sure you want to sign out?'),
                           actions: [
-                            TextButton(onPressed: () => context.pop(false),
+                            TextButton(onPressed: () => Navigator.pop(dialogCtx, false),
                                 child: const Text('Cancel')),
                             TextButton(
-                              onPressed: () => context.pop(true),
+                              onPressed: () => Navigator.pop(dialogCtx, true),
                               child: const Text('Sign Out',
                                   style: TextStyle(color: AppColors.error)),
                             ),
@@ -160,15 +160,18 @@ class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color color;
+  final Color? color;
   const _ActionTile({required this.icon, required this.label,
-      required this.onTap, this.color = AppColors.textPrimary});
+      required this.onTap, this.color});
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: Icon(icon, color: color),
-    title: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w500)),
-    trailing: const Icon(Icons.chevron_right, size: 20),
-    onTap: onTap,
-  );
+  Widget build(BuildContext context) {
+    final c = color ?? Theme.of(context).textTheme.bodyLarge?.color;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: c),
+      title: Text(label, style: TextStyle(color: c, fontWeight: FontWeight.w500)),
+      trailing: const Icon(Icons.chevron_right, size: 20),
+      onTap: onTap,
+    );
+  }
 }

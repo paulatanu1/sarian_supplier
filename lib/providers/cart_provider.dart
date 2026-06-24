@@ -17,11 +17,6 @@ final cartCountProvider = Provider<int>((ref) {
   return cart.fold(0, (s, i) => s + i.quantity);
 });
 
-final cartTotalProvider = Provider<double>((ref) {
-  final cart = ref.watch(cartProvider).asData?.value ?? [];
-  return cart.fold(0.0, (s, i) => s + i.subtotal);
-});
-
 final isInCartProvider = Provider.family<bool, String>((ref, productId) {
   final cart = ref.watch(cartProvider).asData?.value ?? [];
   return cart.any((i) => i.productId == productId);

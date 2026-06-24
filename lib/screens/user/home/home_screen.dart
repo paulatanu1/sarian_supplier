@@ -12,9 +12,10 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user      = ref.watch(appUserProvider).asData?.value;
-    final orders    = ref.watch(userOrdersProvider).asData?.value ?? [];
-    final cartCount = ref.watch(cartCountProvider);
+    final user        = ref.watch(appUserProvider).asData?.value;
+    final ordersAsync = ref.watch(userOrdersProvider);
+    final orders      = ordersAsync.asData?.value ?? [];
+    final cartCount   = ref.watch(cartCountProvider);
 
     final pending   = orders.where((o) => o.status == 'pending').length;
     final delivered = orders.where((o) => o.status == 'delivered').length;
@@ -52,12 +53,6 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-                onPressed: () {},
-              ),
-            ],
           ),
 
           SliverToBoxAdapter(
@@ -73,7 +68,7 @@ class HomeScreen extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    childAspectRatio: 1.6,
+                    childAspectRatio: 1.4,
                     children: [
                       _StatCard(label: 'Total Orders',   value: '${orders.length}',
                           icon: Icons.shopping_bag_outlined, color: AppColors.info,
@@ -127,7 +122,12 @@ class HomeScreen extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  if (orders.isEmpty)
+                  if (ordersAsync.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (orders.isEmpty)
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
@@ -249,9 +249,12 @@ class _OrderRow extends StatelessWidget {
         ),
         child: Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(orderNumber, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(orderNumber,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
             const SizedBox(height: 3),
             Text('$items item${items == 1 ? '' : 's'} • $date',
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: context.textTheme.bodySmall),
           ])),
           Container(

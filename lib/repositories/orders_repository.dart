@@ -39,7 +39,6 @@ class OrdersRepository {
     String? notes,
   }) async {
     final orderNumber = generateOrderNumber();
-    final total = cartItems.fold<double>(0, (s, i) => s + i.subtotal);
 
     final order = OrderModel(
       id:          '',
@@ -55,10 +54,8 @@ class OrdersRepository {
         company:     c.company,
         imageUrl:    c.imageUrl,
         quantity:    c.quantity,
-        price:       c.price,
       )).toList(),
       status:        K.sPending,
-      totalAmount:   total,
       notes:         notes,
       statusHistory: [StatusEvent(status: K.sPending, timestamp: DateTime.now())],
       createdAt:     DateTime.now(),
@@ -66,12 +63,16 @@ class OrdersRepository {
 
     final ref = await _db.collection(K.orders).add(order.toMap());
 
-    // Notify admins
-    await FcmService.notifyAdmins(
-      title: '🛒 New Order Received',
-      body:  '${user.shopName} placed order $orderNumber (${cartItems.length} items)',
-      data:  {'orderId': ref.id, 'type': 'new_order'},
-    );
+    // Notify admins — best-effort, don't block order success if FCM fails
+    try {
+      await FcmService.notifyAdmins(
+        title: '🛒 New Order Received',
+        body:  '${user.shopName} placed order $orderNumber (${cartItems.length} items)',
+        data:  {'orderId': ref.id, 'type': 'new_order'},
+      );
+    } catch (_) {
+      // Notification is a side effect — order has already been created successfully.
+    }
 
     return ref.id;
   }
@@ -95,13 +96,15 @@ class OrdersRepository {
       'updatedAt':     FieldValue.serverTimestamp(),
     });
 
-    // Notify user
-    await FcmService.notifyUser(
-      uid:   order.userId,
-      title: _statusTitle(newStatus),
-      body:  'Your order ${order.orderNumber} has been ${_statusLabel(newStatus)}.',
-      data:  {'orderId': orderId, 'type': 'status_update'},
-    );
+    // Notify user — best-effort
+    try {
+      await FcmService.notifyUser(
+        uid:   order.userId,
+        title: _statusTitle(newStatus),
+        body:  'Your order ${order.orderNumber} has been ${_statusLabel(newStatus)}.',
+        data:  {'orderId': orderId, 'type': 'status_update'},
+      );
+    } catch (_) {}
   }
 
   // ── Reports helpers ───────────────────────────────────────────────────

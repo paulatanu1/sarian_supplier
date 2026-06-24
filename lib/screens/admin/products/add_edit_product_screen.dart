@@ -24,9 +24,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
   final _compCtrl    = TextEditingController();  // composition
   final _coCtrl      = TextEditingController();  // company
   final _descCtrl    = TextEditingController();
-  final _mrpCtrl     = TextEditingController();
-  final _priceCtrl   = TextEditingController();
-  final _stockCtrl   = TextEditingController();
+
   String _category   = '';
   bool   _isActive   = true;
   File?  _imageFile;
@@ -50,9 +48,6 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
     _compCtrl.text   = p.composition;
     _coCtrl.text     = p.company;
     _descCtrl.text   = p.description;
-    _mrpCtrl.text    = p.mrp.toString();
-    _priceCtrl.text  = p.tradePrice.toString();
-    _stockCtrl.text  = p.stockQty.toString();
     setState(() {
       _category         = p.category;
       _isActive         = p.isActive;
@@ -63,8 +58,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
   @override
   void dispose() {
     _nameCtrl.dispose(); _compCtrl.dispose(); _coCtrl.dispose();
-    _descCtrl.dispose(); _mrpCtrl.dispose(); _priceCtrl.dispose();
-    _stockCtrl.dispose();
+    _descCtrl.dispose();
     super.dispose();
   }
 
@@ -86,9 +80,6 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
           'company':     _coCtrl.text.trim(),
           'category':    _category,
           'description': _descCtrl.text.trim(),
-          'mrp':         double.tryParse(_mrpCtrl.text) ?? 0,
-          'tradePrice':  double.tryParse(_priceCtrl.text) ?? 0,
-          'stockQty':    int.tryParse(_stockCtrl.text) ?? 0,
           'isActive':    _isActive,
         }, image: _imageFile);
         if (mounted) context.showSnack('Product updated');
@@ -100,9 +91,6 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
           company:     _coCtrl.text.trim(),
           category:    _category,
           description: _descCtrl.text.trim(),
-          mrp:         double.tryParse(_mrpCtrl.text)   ?? 0,
-          tradePrice:  double.tryParse(_priceCtrl.text) ?? 0,
-          stockQty:    int.tryParse(_stockCtrl.text)    ?? 0,
           isActive:    _isActive,
           updatedAt:   DateTime.now(),
         );
@@ -119,7 +107,11 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cats = ref.watch(categoriesProvider).asData?.value ?? [];
+    // Existing category values currently in use on products — used to power
+    // the autocomplete suggestions. Admins can also type a brand-new
+    // category name, which will appear in the sidebar as soon as the
+    // product is saved (because the sidebar is derived from products).
+    final existingCategories = ref.watch(productCategoriesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -180,31 +172,74 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
             _field(_compCtrl,  'Composition',   Icons.science_outlined, required: true),
             _field(_coCtrl,    'Company Name',  Icons.business_outlined, required: true),
 
-            // Category dropdown
+            // Category — free-text with suggestions from existing products.
+            // Type any name; the user-side sidebar updates automatically.
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _category.isEmpty ? null : _category,
-              decoration:  const InputDecoration(
-                labelText: 'Category',
-                prefixIcon: Icon(Icons.category_outlined),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Autocomplete<String>(
+                initialValue: TextEditingValue(text: _category),
+                optionsBuilder: (textEditingValue) {
+                  final input = textEditingValue.text.trim().toLowerCase();
+                  if (input.isEmpty) return existingCategories;
+                  return existingCategories.where(
+                    (c) => c.toLowerCase().contains(input),
+                  );
+                },
+                onSelected: (selection) =>
+                    setState(() => _category = selection),
+                fieldViewBuilder: (ctx, ctrl, focus, onSubmit) {
+                  // Keep external _category in sync as user types so a brand
+                  // new (unselected) name is also saved.
+                  ctrl.addListener(() {
+                    if (_category != ctrl.text) _category = ctrl.text;
+                  });
+                  return TextFormField(
+                    controller: ctrl,
+                    focusNode: focus,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      hintText: 'e.g. Anti-Spasmodic',
+                      helperText: 'Pick existing or type a new one',
+                      prefixIcon: Icon(Icons.category_outlined),
+                    ),
+                    validator: (v) => (v == null || v.trim().isEmpty)
+                        ? 'Enter or select a category'
+                        : null,
+                  );
+                },
+                optionsViewBuilder: (ctx, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(10),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                            maxHeight: 240, maxWidth: 360),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (_, i) {
+                            final o = options.elementAt(i);
+                            return ListTile(
+                              dense: true,
+                              title: Text(o,
+                                  style: const TextStyle(fontSize: 13)),
+                              onTap: () => onSelected(o),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
-              items: cats.map((c) => DropdownMenuItem(
-                value: c.name, child: Text(c.name))).toList(),
-              onChanged: (v) { setState(() => _category = v ?? ''); },
-              validator:   (v) => (v == null || v.isEmpty) ? 'Select a category' : null,
             ),
-            const SizedBox(height: 16),
 
             _field(_descCtrl,  'Description',   Icons.notes_outlined, maxLines: 3),
-            Row(children: [
-              Expanded(child: _field(_mrpCtrl,   'MRP (₹)',
-                  Icons.currency_rupee, type: TextInputType.number)),
-              const SizedBox(width: 12),
-              Expanded(child: _field(_priceCtrl, 'Trade Price (₹)',
-                  Icons.price_change_outlined, type: TextInputType.number)),
-            ]),
-            _field(_stockCtrl, 'Stock Quantity', Icons.inventory_outlined,
-                type: TextInputType.number, required: true),
 
             // Active toggle
             SwitchListTile(

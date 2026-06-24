@@ -17,13 +17,10 @@ class AdminDashboardScreen extends ConsumerWidget {
     final allOrders  = ref.watch(allOrdersProvider).asData?.value ?? [];
     final allUsers   = ref.watch(allUsersProvider).asData?.value ?? [];
     final products   = ref.watch(allProductsAdminProvider).asData?.value ?? [];
-    final themeMode  = ref.watch(themeModeProvider);
-    final isDark     = themeMode == ThemeMode.dark;
+    ref.watch(themeModeProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final pending    = allOrders.where((o) => o.status == 'pending').length;
-    final revenue    = allOrders
-        .where((o) => o.status == 'delivered')
-        .fold<double>(0, (s, o) => s + o.totalAmount);
 
     return Scaffold(
       appBar: AppBar(
@@ -95,29 +92,6 @@ class AdminDashboardScreen extends ConsumerWidget {
                   () => context.go('/admin/users')),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Revenue
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
-            ),
-            child: Row(children: [
-              const Icon(Icons.currency_rupee_rounded,
-                  color: AppColors.success, size: 40),
-              const SizedBox(width: 16),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Total Revenue', style: context.textTheme.bodyMedium),
-                Text(revenue.inr,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold,
-                        color: AppColors.success)),
-                Text('from delivered orders', style: context.textTheme.bodySmall),
-              ]),
-            ]),
-          ),
           const SizedBox(height: 20),
 
           // Recent orders
@@ -131,6 +105,19 @@ class AdminDashboardScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
+          if (allOrders.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: const Center(
+                child: Text('No orders yet',
+                    style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            ),
           ...allOrders.take(5).map((o) {
             final color = AppColors.statusColor(o.status);
             return GestureDetector(
@@ -146,8 +133,11 @@ class AdminDashboardScreen extends ConsumerWidget {
                 child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(o.orderNumber,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    Text(o.shopName, style: context.textTheme.bodySmall),
+                    Text(o.shopName,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: context.textTheme.bodySmall),
                   ])),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

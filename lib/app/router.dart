@@ -9,6 +9,7 @@ import '../screens/auth/profile_setup_screen.dart';
 import '../screens/user/user_shell.dart';
 import '../screens/user/home/home_screen.dart';
 import '../screens/user/products/products_screen.dart';
+import '../screens/user/products/product_detail_screen.dart';
 import '../screens/user/cart/cart_screen.dart';
 import '../screens/user/orders/orders_screen.dart';
 import '../screens/user/orders/order_detail_screen.dart';
@@ -67,7 +68,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (ctx, state, child) => UserShell(child: child),
         routes: [
           GoRoute(path: '/home',     builder: (ctx, _) => const HomeScreen()),
-          GoRoute(path: '/products', builder: (ctx, _) => const ProductsScreen()),
+          GoRoute(
+            path: '/products',
+            builder: (ctx, _) => const ProductsScreen(),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (ctx, s) =>
+                    ProductDetailScreen(productId: s.pathParameters['id']!),
+              ),
+            ],
+          ),
           GoRoute(path: '/cart',     builder: (ctx, _) => const CartScreen()),
           GoRoute(
             path: '/orders',

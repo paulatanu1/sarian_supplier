@@ -16,9 +16,102 @@ class AdminProductsScreen extends ConsumerStatefulWidget {
 class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
   String _query = '';
   final _searchCtrl = TextEditingController();
+  bool _seeding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(productsNotifierProvider.notifier).seedCategories();
+    });
+  }
 
   @override
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
+
+  Future<void> _showCategoryCounts() async {
+    final products = ref.read(allProductsAdminProvider).asData?.value ?? const [];
+
+    // Count by exact category value. Empty/whitespace counts under "(no category)".
+    final counts = <String, int>{};
+    var noCategory = 0;
+    for (final p in products) {
+      final raw = p.category.trim();
+      if (raw.isEmpty) {
+        noCategory++;
+      } else {
+        counts[raw] = (counts[raw] ?? 0) + 1;
+      }
+    }
+    final sortedCats = counts.keys.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text('Product counts (${products.length} total)'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final c in sortedCats)
+                  _CountRow(label: c, count: counts[c]!),
+                if (noCategory > 0) ...[
+                  const Divider(height: 24),
+                  _CountRow(
+                    label: '(no category)',
+                    count: noCategory,
+                    warn: true,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx),
+              child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _seedSampleProducts() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Seed Sample Products?'),
+        content: const Text(
+          'Adds ~81 sample pharma products across all 18 categories. '
+          'Existing products are kept; only new names will be added.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(dialogCtx, true),
+              child: const Text('Seed')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _seeding = true);
+    try {
+      final (added, skipped) =
+          await ref.read(productsNotifierProvider.notifier).seedSampleProducts();
+      if (mounted) {
+        context.showSnack(added == 0
+            ? 'No new products — catalogue already seeded.'
+            : 'Added $added products. Skipped $skipped already present.');
+      }
+    } catch (e) {
+      if (mounted) context.showSnack('Seed failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _seeding = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +121,40 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
       appBar: AppBar(
         title: const Text('Products'),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Tools',
+            icon: _seeding
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.more_vert_rounded, color: Colors.white),
+            enabled: !_seeding,
+            onSelected: (v) {
+              switch (v) {
+                case 'counts': _showCategoryCounts();
+                case 'seed':   _seedSampleProducts();
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'counts',
+                child: ListTile(
+                  leading: Icon(Icons.assessment_outlined),
+                  title: Text('Category counts'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'seed',
+                child: ListTile(
+                  leading: Icon(Icons.auto_awesome_rounded),
+                  title: Text('Seed sample products'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.add_rounded, color: Colors.white),
             onPressed: () => context.push('/admin/products/add'),
@@ -60,7 +187,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                 padding: const EdgeInsets.all(12),
                 itemBuilder: (ctx, _) => const OrderCardSkeleton(),
               ),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              error: (e, _) => const Center(child: Text('Unable to load products. Please try again.')),
               data: (products) {
                 final filtered = _query.isEmpty
                     ? products
@@ -103,11 +230,9 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                           Text(p.composition, maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: context.textTheme.bodySmall),
-                          Row(children: [
+                          Wrap(spacing: 6, runSpacing: 2, children: [
                             _Tag(p.category, AppColors.primary),
-                            const SizedBox(width: 6),
-                            _Tag(p.inStock ? 'In Stock' : 'Out',
-                                p.inStock ? AppColors.success : AppColors.error),
+                            _Tag('In Stock', AppColors.success),
                           ]),
                         ]),
                         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -152,5 +277,44 @@ class _Tag extends StatelessWidget {
     ),
     child: Text(label,
         style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)),
+  );
+}
+
+class _CountRow extends StatelessWidget {
+  final String label;
+  final int    count;
+  final bool   warn;
+  const _CountRow({required this.label, required this.count, this.warn = false});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Icon(
+        warn ? Icons.warning_amber_rounded : Icons.label_outline,
+        size: 16,
+        color: warn ? AppColors.warning
+            : (count > 0 ? AppColors.success : AppColors.textSecondary),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(label,
+            style: const TextStyle(fontSize: 13),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: (count > 0 ? AppColors.primary : AppColors.textSecondary)
+              .withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text('$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: count > 0 ? AppColors.primary : AppColors.textSecondary,
+            )),
+      ),
+    ]),
   );
 }

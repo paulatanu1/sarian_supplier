@@ -9,6 +9,8 @@ class ProductAvatar extends StatelessWidget {
   final String  productName;
   final String  company;
   final String  composition;
+  final double? width;
+  final double? height;
   final double  size;
   final double  radius;
 
@@ -18,9 +20,14 @@ class ProductAvatar extends StatelessWidget {
     required this.productName,
     required this.company,
     required this.composition,
+    this.width,
+    this.height,
     this.size   = 120,
     this.radius = 12,
   });
+
+  double get _w => width ?? size;
+  double get _h => height ?? size;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +36,7 @@ class ProductAvatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         child: CachedNetworkImage(
           imageUrl: imageUrl!,
-          width: size, height: size, fit: BoxFit.cover,
+          width: _w, height: _h, fit: BoxFit.cover,
           placeholder: (ctx, _) => _generated(),
           errorWidget: (ctx, url, _) => _generated(),
         ),
@@ -39,12 +46,14 @@ class ProductAvatar extends StatelessWidget {
   }
 
   Widget _generated() {
-    final idx    = gradientIndexFor(company + productName);
-    final colors = AppColors.categoryGradients[idx % AppColors.categoryGradients.length];
-    final abbrev = company.isNotEmpty ? company[0].toUpperCase() : 'S';
+    final idx     = gradientIndexFor(company + productName);
+    final colors  = AppColors.categoryGradients[idx % AppColors.categoryGradients.length];
+    final abbrev  = company.isNotEmpty ? company[0].toUpperCase() : 'S';
+    // Scale inner content by shorter dimension so it fits both square + rectangular.
+    final s = _w < _h ? _w : _h;
 
     return Container(
-      width: size, height: size,
+      width: _w, height: _h,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -56,37 +65,41 @@ class ProductAvatar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircleAvatar(
-            radius: size * 0.16,
+            radius: s * 0.16,
             backgroundColor: Colors.white24,
             child: Text(abbrev,
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
-                fontSize: size * 0.16,
+                fontSize: s * 0.16,
               ),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            productName,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: size * 0.09,
+          SizedBox(height: s * 0.06),
+          Flexible(
+            child: Text(
+              productName,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: s * 0.09,
+              ),
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            composition,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: size * 0.075,
+          SizedBox(height: s * 0.03),
+          Flexible(
+            child: Text(
+              composition,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: s * 0.075,
+              ),
             ),
           ),
         ],

@@ -67,7 +67,7 @@ class _OrderList extends ConsumerWidget {
         itemCount: 5,
         itemBuilder: (ctx, _) => const OrderCardSkeleton(),
       ),
-      error: (e, _) => Center(child: Text('Error: $e')),
+      error: (e, _) => const Center(child: Text('Unable to load orders. Please try again.')),
       data: (orders) {
         if (orders.isEmpty) {
           return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -109,8 +109,11 @@ class _AdminOrderCard extends StatelessWidget {
           Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(order.orderNumber,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              Text(order.shopName, style: context.textTheme.bodyMedium),
+              Text(order.shopName,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: context.textTheme.bodyMedium),
               Text(order.createdAt.timeAgo, style: context.textTheme.bodySmall),
             ])),
             Container(
@@ -128,7 +131,7 @@ class _AdminOrderCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${order.totalItems} items  •  ${order.totalAmount.inr}',
+              Text('${order.totalItems} items',
                   style: context.textTheme.bodyMedium),
               _NextActionBtn(order: order, ref: ref),
             ],

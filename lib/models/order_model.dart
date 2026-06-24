@@ -8,7 +8,6 @@ class OrderItem {
   final String company;
   final String? imageUrl;
   final int    quantity;
-  final double price;
 
   const OrderItem({
     required this.productId,
@@ -17,10 +16,7 @@ class OrderItem {
     required this.company,
     this.imageUrl,
     required this.quantity,
-    required this.price,
   });
-
-  double get subtotal => quantity * price;
 
   factory OrderItem.fromMap(Map<String, dynamic> m) => OrderItem(
     productId:   m['productId']   ?? '',
@@ -29,7 +25,6 @@ class OrderItem {
     company:     m['company']     ?? '',
     imageUrl:    m['imageUrl'],
     quantity:    (m['quantity']   ?? 1).toInt(),
-    price:       (m['price']      ?? 0).toDouble(),
   );
 
   Map<String, dynamic> toMap() => {
@@ -39,7 +34,6 @@ class OrderItem {
     'company':     company,
     'imageUrl':    imageUrl,
     'quantity':    quantity,
-    'price':       price,
   };
 }
 
@@ -72,7 +66,6 @@ class OrderModel {
   final String      phone;
   final List<OrderItem>   items;
   final String      status;
-  final double      totalAmount;
   final String?     notes;
   final List<StatusEvent> statusHistory;
   final DateTime    createdAt;
@@ -87,7 +80,6 @@ class OrderModel {
     required this.phone,
     required this.items,
     required this.status,
-    required this.totalAmount,
     this.notes,
     required this.statusHistory,
     required this.createdAt,
@@ -109,7 +101,6 @@ class OrderModel {
       phone:         d['phone']        ?? '',
       items:         rawItems.map((e) => OrderItem.fromMap(e as Map<String, dynamic>)).toList(),
       status:        d['status']       ?? 'pending',
-      totalAmount:   (d['totalAmount'] ?? 0).toDouble(),
       notes:         d['notes'],
       statusHistory: rawHistory.map((e) => StatusEvent.fromMap(e as Map<String, dynamic>)).toList(),
       createdAt:     tsToDate(d['createdAt']) ?? DateTime.now(),
@@ -125,7 +116,6 @@ class OrderModel {
     'phone':         phone,
     'items':         items.map((e) => e.toMap()).toList(),
     'status':        status,
-    'totalAmount':   totalAmount,
     'notes':         notes,
     'statusHistory': statusHistory.map((e) => e.toMap()).toList(),
     'createdAt':     FieldValue.serverTimestamp(),
@@ -141,7 +131,6 @@ class OrderModel {
     phone:         phone,
     items:         items,
     status:        status        ?? this.status,
-    totalAmount:   totalAmount,
     notes:         notes,
     statusHistory: statusHistory ?? this.statusHistory,
     createdAt:     createdAt,

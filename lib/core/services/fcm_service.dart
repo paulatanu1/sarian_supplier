@@ -5,7 +5,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Background message handler — must be top-level.
 @pragma('vm:entry-point')
 Future<void> _bgHandler(RemoteMessage msg) async {}
 
@@ -22,39 +21,33 @@ class FcmService {
   );
 
   static Future<void> init() async {
-    // Register background handler
     FirebaseMessaging.onBackgroundMessage(_bgHandler);
 
-    // Request permission
     await _fcm.requestPermission(alert: true, badge: true, sound: true);
 
-    // Android notification channel
     await _local
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
 
-    // Init local notifications
-    const init = InitializationSettings(
+    const initSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       iOS: DarwinInitializationSettings(),
     );
-    await _local.initialize(init);
+    await _local.initialize(initSettings);
 
-    // Foreground display
     await _fcm.setForegroundNotificationPresentationOptions(
       alert: true, badge: true, sound: true,
     );
 
-    // Listen foreground messages
     FirebaseMessaging.onMessage.listen(_showLocal);
 
-    // Save token
     await saveToken();
-
-    // Token refresh
     _fcm.onTokenRefresh.listen((_) => saveToken());
   }
 
+  /// Saves FCM token using merge:true so it works even if the doc
+  /// doesn't exist yet (new users on first login).
   static Future<void> saveToken() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -63,7 +56,7 @@ class FcmService {
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .update({'fcmToken': token});
+        .set({'fcmToken': token}, SetOptions(merge: true)); // ← was .update()
   }
 
   static void _showLocal(RemoteMessage msg) {
@@ -87,9 +80,8 @@ class FcmService {
     );
   }
 
-  /// Send a push notification to a specific FCM token using Firestore queue.
-  /// A Cloud Function watches `notifications` collection and dispatches via FCM.
-  /// Here we write a notification document so Cloud Functions can pick it up.
+  /// Writes a notification document that the Cloud Function (functions/index.js)
+  /// picks up and sends via FCM HTTP v1 API.
   static Future<void> queueNotification({
     required String toToken,
     required String title,
@@ -102,12 +94,12 @@ class FcmService {
       'title':     title,
       'body':      body,
       'data':      data,
-      'sentAt':    FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
       'processed': false,
     });
   }
 
-  /// Notify all admins (reads admin FCM tokens from Firestore).
+  /// Notifies all admin users (reads FCM tokens from Firestore).
   static Future<void> notifyAdmins({
     required String title,
     required String body,
@@ -126,7 +118,7 @@ class FcmService {
     }
   }
 
-  /// Notify a single user by UID.
+  /// Notifies a single user by UID.
   static Future<void> notifyUser({
     required String uid,
     required String title,
@@ -134,7 +126,10 @@ class FcmService {
     Map<String, String> data = const {},
   }) async {
     if (kIsWeb) return;
-    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
     final token = doc.data()?['fcmToken'] as String? ?? '';
     if (token.isNotEmpty) {
       await queueNotification(toToken: token, title: title, body: body, data: data);

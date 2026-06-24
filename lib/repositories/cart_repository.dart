@@ -27,7 +27,6 @@ class CartRepository {
         category:    product.category,
         imageUrl:    product.imageUrl,
         quantity:    1,
-        price:       product.tradePrice,
         updatedAt:   DateTime.now(),
       ).toMap());
     }

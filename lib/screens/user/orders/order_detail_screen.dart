@@ -6,10 +6,50 @@ import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/order_timeline.dart';
 import '../../../core/widgets/product_avatar.dart';
 import '../../../models/order_model.dart';
+import '../../../providers/orders_provider.dart';
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
   const OrderDetailScreen({super.key, required this.orderId});
+
+  static const _cancelStartHour = 5;   // 05:00 local
+  static const _cancelEndHour   = 19;  // 19:00 local
+
+  bool get _isInCancelWindow {
+    final h = DateTime.now().hour;
+    return h >= _cancelStartHour && h < _cancelEndHour;
+  }
+
+  Future<void> _cancelOrder(BuildContext context, WidgetRef ref, String number) async {
+    if (!_isInCancelWindow) {
+      context.showSnack(
+        'Cancellation allowed between 5:00 AM and 7:00 PM only.',
+        isError: true,
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Cancel Order'),
+        content: Text('Are you sure you want to cancel order $number?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Yes, Cancel', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await ref.read(ordersNotifierProvider.notifier).updateStatus(orderId, 'cancelled');
+      if (context.mounted) context.showSnack('Order cancelled');
+    } catch (_) {
+      if (context.mounted) context.showSnack('Failed to cancel order', isError: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,9 +65,25 @@ class OrderDetailScreen extends ConsumerWidget {
 
         final order = OrderModel.fromFirestore(snap.data!);
         final statusColor = AppColors.statusColor(order.status);
+        final canCancel   = order.status == 'pending';
+        final inWindow    = _isInCancelWindow;
 
         return Scaffold(
-          appBar: AppBar(title: Text(order.orderNumber)),
+          appBar: AppBar(
+            title: Text(order.orderNumber),
+            actions: [
+              if (canCancel)
+                TextButton(
+                  onPressed: () => _cancelOrder(context, ref, order.orderNumber),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: inWindow ? Colors.white : Colors.white60,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -51,6 +107,35 @@ class OrderDetailScreen extends ConsumerWidget {
                   ]),
                 ]),
               ),
+
+              // Cancel window hint — shown only for pending orders
+              if (canCancel) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: (inWindow ? AppColors.info : AppColors.warning)
+                        .withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(children: [
+                    Icon(
+                      inWindow ? Icons.info_outline : Icons.access_time_rounded,
+                      size: 16,
+                      color: inWindow ? AppColors.info : AppColors.warning,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        inWindow
+                            ? 'You can cancel this order between 5:00 AM – 7:00 PM.'
+                            : 'Cancellation closed. Available 5:00 AM – 7:00 PM only.',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 16),
 
               // Shop info
@@ -81,33 +166,11 @@ class OrderDetailScreen extends ConsumerWidget {
                           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                           maxLines: 2),
                       Text(item.composition, style: context.textTheme.bodySmall, maxLines: 1),
-                      Text('Qty: ${item.quantity}  •  ${item.price.inr} each',
+                      Text('Qty: ${item.quantity}',
                           style: context.textTheme.bodySmall),
                     ])),
-                    Text(item.subtotal.inr,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   ]),
                 )).toList(),
-              ),
-              const SizedBox(height: 16),
-
-              // Total
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total Amount',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                    Text(order.totalAmount.inr,
-                        style: const TextStyle(fontWeight: FontWeight.bold,
-                            fontSize: 18, color: AppColors.primary)),
-                  ],
-                ),
               ),
               const SizedBox(height: 16),
 

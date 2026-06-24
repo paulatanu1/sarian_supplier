@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/product_avatar.dart';
+import '../../../models/cart_item_model.dart';
 import '../../../providers/cart_provider.dart';
 import '../../../providers/orders_provider.dart';
 
@@ -25,13 +26,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Confirm Order'),
         content: Text('Place order for ${cart.fold(0, (s, i) => s + i.quantity)} items?'),
         actions: [
-          TextButton(onPressed: () => context.pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () => context.pop(true),
+            onPressed: () => Navigator.pop(dialogCtx, true),
             style: ElevatedButton.styleFrom(minimumSize: const Size(80, 40)),
             child: const Text('Place Order'),
           ),
@@ -55,7 +56,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartProvider);
-    final total     = ref.watch(cartTotalProvider);
     final cart      = cartAsync.asData?.value ?? [];
 
     return Scaffold(
@@ -67,13 +67,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               onPressed: () async {
                 final ok = await showDialog<bool>(
                   context: context,
-                  builder: (_) => AlertDialog(
+                  builder: (dialogCtx) => AlertDialog(
                     title: const Text('Clear Cart'),
                     content: const Text('Remove all items from cart?'),
                     actions: [
-                      TextButton(onPressed: () => context.pop(false), child: const Text('Cancel')),
+                      TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Cancel')),
                       TextButton(
-                        onPressed: () => context.pop(true),
+                        onPressed: () => Navigator.pop(dialogCtx, true),
                         child: const Text('Clear', style: TextStyle(color: AppColors.error)),
                       ),
                     ],
@@ -142,37 +142,30 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                   ),
                   child: Column(children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Total (${cart.fold(0, (s, i) => s + i.quantity)} items)',
-                            style: context.textTheme.titleMedium),
-                        Text(total.inr,
-                            style: context.textTheme.titleLarge?.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+                    Text('${cart.fold(0, (s, i) => s + i.quantity)} items in cart',
+                        style: context.textTheme.titleMedium),
                     const SizedBox(height: 16),
                     Row(children: [
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: OutlinedButton(
                           onPressed: () => context.go('/products'),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          label: const Text('Continue'),
                           style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(0, 48)),
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(horizontal: 8)),
+                          child: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Continue Shopping'),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         flex: 2,
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           onPressed: _placeOrder,
-                          icon: const Icon(Icons.check_rounded),
-                          label: const Text('Place Order'),
                           style: ElevatedButton.styleFrom(
                               minimumSize: const Size(0, 48)),
+                          child: const Text('Place Order'),
                         ),
                       ),
                     ]),
@@ -185,7 +178,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 }
 
 class _CartItem extends StatelessWidget {
-  final dynamic item;
+  final CartItem item;
   final void Function(int) onQtyChange;
   final VoidCallback onRemove;
   const _CartItem({required this.item, required this.onQtyChange, required this.onRemove});
@@ -216,10 +209,6 @@ class _CartItem extends StatelessWidget {
               maxLines: 2, overflow: TextOverflow.ellipsis),
           Text(item.composition,
               style: context.textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 6),
-          Text((item.price as double).inr,
-              style: const TextStyle(fontWeight: FontWeight.bold,
-                  color: AppColors.primary, fontSize: 13)),
         ])),
         const SizedBox(width: 8),
         Column(children: [

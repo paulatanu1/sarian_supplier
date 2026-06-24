@@ -15,10 +15,21 @@ service cloud.firestore {
     function isAdmin() { return isAuth() && role() == 'admin'; }
     function isUser()  { return isAuth() && role() == 'user'; }
 
+    // True when current server time is between 05:00 and 19:00 IST (UTC+5:30).
+    // Used to gate user-initiated order cancellations to business hours.
+    function inCancelWindowIST() {
+      let istSec = (request.time.toMillis() / 1000 + 5*3600 + 30*60) % 86400;
+      return istSec >= 5*3600 && istSec < 19*3600;
+    }
+
     // ── users ──────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read:   if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid);
+      // Authenticated users may read other user docs only when the doc is an admin
+      // (needed for FCM token lookup when placing orders). Owner & admin always read.
+      allow read:   if isOwner(uid)
+                    || isAdmin()
+                    || (isAuth() && resource.data.role == 'admin');
+      allow create: if isOwner(uid) || isAdmin();
       allow update: if isOwner(uid) || isAdmin();
       allow delete: if isAdmin();
     }
@@ -31,8 +42,12 @@ service cloud.firestore {
 
     // ── categories ─────────────────────────────────────────────────────
     match /categories/{categoryId} {
-      allow read:  if isAuth();
-      allow write: if isAdmin();
+      allow read:   if isAuth();
+      // Any auth user can create (used for first-launch bootstrap seeding).
+      // Update / delete remains admin-only.
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ── orders ─────────────────────────────────────────────────────────
@@ -41,7 +56,14 @@ service cloud.firestore {
                        (isAdmin() ||
                         resource.data.userId == uid());
       allow create: if isUser();
-      allow update: if isAdmin();
+      // Admins may update any order. Order owner may cancel their own order
+      // only while it is still 'pending' AND during the 5 AM – 7 PM IST window.
+      allow update: if isAdmin() ||
+                       (isAuth()
+                        && resource.data.userId == uid()
+                        && resource.data.status == 'pending'
+                        && request.resource.data.status == 'cancelled'
+                        && inCancelWindowIST());
       allow delete: if isAdmin();
     }
 

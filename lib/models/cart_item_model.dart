@@ -9,7 +9,6 @@ class CartItem {
   final String  category;
   final String? imageUrl;
   final int     quantity;
-  final double  price;       // tradePrice at time of adding
   final DateTime updatedAt;
 
   const CartItem({
@@ -20,11 +19,8 @@ class CartItem {
     required this.category,
     this.imageUrl,
     required this.quantity,
-    required this.price,
     required this.updatedAt,
   });
-
-  double get subtotal => quantity * price;
 
   factory CartItem.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
@@ -36,7 +32,6 @@ class CartItem {
       category:    d['category']    ?? '',
       imageUrl:    d['imageUrl'],
       quantity:    (d['quantity']   ?? 1).toInt(),
-      price:       (d['price']      ?? 0).toDouble(),
       updatedAt:   tsToDate(d['updatedAt']) ?? DateTime.now(),
     );
   }
@@ -48,11 +43,10 @@ class CartItem {
     'category':    category,
     'imageUrl':    imageUrl,
     'quantity':    quantity,
-    'price':       price,
     'updatedAt':   FieldValue.serverTimestamp(),
   };
 
-  CartItem copyWith({int? quantity, double? price}) => CartItem(
+  CartItem copyWith({int? quantity}) => CartItem(
     productId:   productId,
     productName: productName,
     composition: composition,
@@ -60,7 +54,6 @@ class CartItem {
     category:    category,
     imageUrl:    imageUrl,
     quantity:    quantity ?? this.quantity,
-    price:       price    ?? this.price,
     updatedAt:   DateTime.now(),
   );
 }

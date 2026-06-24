@@ -57,7 +57,7 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
           Expanded(
             child: usersAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              error: (e, _) => const Center(child: Text('Unable to load users. Please try again.')),
               data: (users) {
                 final filtered = _query.isEmpty
                     ? users
@@ -119,12 +119,15 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(u.name,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                       fontSize: 14)),
                               Text(u.shopName,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
                                   style: context.textTheme.bodyMedium),
                               Text(u.phone,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
                                   style: context.textTheme.bodySmall),
                             ],
                           ),

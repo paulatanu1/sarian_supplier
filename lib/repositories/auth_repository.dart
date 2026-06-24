@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../core/constants/k.dart';
 import '../core/utils/helpers.dart';
 import '../models/user_model.dart';
@@ -38,7 +39,6 @@ class AuthRepository {
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
 
-  /// Complete profile for a user — called after first login.
   Future<AppUser> completeProfile({
     required String uid,
     required String email,
@@ -46,14 +46,12 @@ class AuthRepository {
     required String shopName,
     required String phone,
   }) async {
-    // Uniqueness checks
     if (!await isPhoneUnique(_db, K.users, phone, excludeUid: uid)) {
       throw Exception('This mobile number is already registered.');
     }
     if (!await isOwnerPhoneUnique(_db, K.users, name, phone, excludeUid: uid)) {
       throw Exception('Owner name + mobile combination already exists.');
     }
-
     final data = {
       'name':             name,
       'shopName':         shopName,
@@ -69,7 +67,8 @@ class AuthRepository {
     return AppUser.fromFirestore(doc);
   }
 
-  /// Admin creates a new user account (email+password via Admin SDK workaround).
+  /// Creates a new user WITHOUT disturbing the current admin session.
+  /// Uses a secondary FirebaseApp instance so the admin stays signed in.
   Future<AppUser> adminCreateUser({
     required String email,
     required String password,
@@ -77,7 +76,6 @@ class AuthRepository {
     required String shopName,
     required String phone,
   }) async {
-    // Uniqueness checks
     if (!await isPhoneUnique(_db, K.users, phone)) {
       throw Exception('This mobile number is already registered.');
     }
@@ -85,27 +83,37 @@ class AuthRepository {
       throw Exception('Owner name + mobile combination already exists.');
     }
 
-    // Create Firebase Auth user
-    final cred = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(), password: password,
+    // Use a throw-away secondary FirebaseApp so the admin session is untouched.
+    final secondaryApp = await Firebase.initializeApp(
+      name:    'userCreate_${DateTime.now().millisecondsSinceEpoch}',
+      options: Firebase.app().options,
     );
 
-    final uid  = cred.user!.uid;
-    final data = {
-      'name':             name,
-      'shopName':         shopName,
-      'email':            email.trim(),
-      'phone':            phone,
-      'role':             K.roleUser,
-      'profileCompleted': true,
-      'isActive':         true,
-      'createdAt':        FieldValue.serverTimestamp(),
-    };
-    await _db.collection(K.users).doc(uid).set(data);
+    try {
+      final cred = await FirebaseAuth.instanceFor(app: secondaryApp)
+          .createUserWithEmailAndPassword(
+            email:    email.trim(),
+            password: password,
+          );
 
-    // Re-sign in as admin (createUserWithEmailAndPassword logs out current user)
-    final doc = await _db.collection(K.users).doc(uid).get();
-    return AppUser.fromFirestore(doc);
+      final newUid = cred.user!.uid;
+      await _db.collection(K.users).doc(newUid).set({
+        'name':             name,
+        'shopName':         shopName,
+        'email':            email.trim(),
+        'phone':            phone,
+        'role':             K.roleUser,
+        'profileCompleted': true,
+        'isActive':         true,
+        'createdAt':        FieldValue.serverTimestamp(),
+      });
+
+      final doc = await _db.collection(K.users).doc(newUid).get();
+      return AppUser.fromFirestore(doc);
+    } finally {
+      // Always clean up the secondary app whether the call succeeded or failed.
+      await secondaryApp.delete();
+    }
   }
 
   Future<void> updateUser(String uid, Map<String, dynamic> data) =>

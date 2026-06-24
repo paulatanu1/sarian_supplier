@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/product_avatar.dart';
@@ -20,31 +21,37 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   String _query = '';
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(productsNotifierProvider.notifier).seedCategories();
-    });
-  }
-
-  @override
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
-    final cats          = ref.watch(categoriesProvider).asData?.value ?? [];
-    final selectedCat   = ref.watch(selectedCategoryProvider);
-    final effectiveCat  = selectedCat.isEmpty && cats.isNotEmpty ? cats.first.name : selectedCat;
-    final productsAsync = ref.watch(productsProvider(effectiveCat));
-    final searchAsync   = ref.watch(productSearchProvider(_query));
+    // Categories are *derived from products* — whatever distinct category
+    // values exist on Firestore products show up in the sidebar.
+    final categoryNames    = ref.watch(productCategoriesProvider);
+    final categoryCounts   = ref.watch(productCategoryCountsProvider);
+    final selectedCat      = ref.watch(selectedCategoryProvider);
+    final allProductsAsync = ref.watch(allActiveProductsProvider);
+    final searchAsync      = ref.watch(productSearchProvider(_query));
+
+    final allProducts = allProductsAsync.asData?.value ?? const [];
+
+    // Client-side filter: when a category is selected, keep only products whose
+    // `category` matches (case-insensitive, trimmed). selectedCat=='' → All.
+    final filteredByCat = selectedCat.isEmpty
+        ? allProducts
+        : allProducts
+            .where((p) =>
+                p.category.trim().toLowerCase() ==
+                selectedCat.trim().toLowerCase())
+            .toList();
 
     final products = _query.isNotEmpty
-        ? (searchAsync.asData?.value ?? [])
-        : (productsAsync.asData?.value ?? []);
+        ? (searchAsync.asData?.value ?? const [])
+        : filteredByCat;
 
     final isLoading = _query.isNotEmpty
         ? searchAsync.isLoading
-        : productsAsync.isLoading;
+        : allProductsAsync.isLoading;
 
     return Scaffold(
       appBar: AppBar(
@@ -91,56 +98,87 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           Expanded(
             child: Row(
               children: [
-                // ── Left: Category sidebar ──────────────────────────────
+                // ── Left: Category sidebar (derived from product data) ──
                 if (_query.isEmpty)
                   Container(
-                    width: 80,
+                    width: 120,
                     color: context.isDark
                         ? AppColors.surfaceDark
                         : const Color(0xFFF0F2F5),
-                    child: cats.isEmpty
-                        ? const SizedBox()
-                        : ListView.builder(
-                            itemCount: cats.length,
-                            itemBuilder: (_, i) {
-                              final cat = cats[i];
-                              final active = cat.name == effectiveCat;
-                              return GestureDetector(
-                                onTap: () => ref
-                                    .read(selectedCategoryProvider.notifier)
-                                    .state = cat.name,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  margin: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 4),
+                    child: ListView.builder(
+                      itemCount: categoryNames.length + 1, // +1 for "All"
+                      itemBuilder: (_, i) {
+                        final isAll = i == 0;
+                        final name  = isAll ? '' : categoryNames[i - 1];
+                        final label = isAll ? 'All Products' : name;
+                        final count = isAll
+                            ? allProducts.length
+                            : (categoryCounts[name] ?? 0);
+                        final active = name == selectedCat;
+                        return InkWell(
+                          onTap: () => ref
+                              .read(selectedCategoryProvider.notifier)
+                              .state = name,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: active
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      height: 1.25,
+                                      color: active
+                                          ? Colors.white
+                                          : context.textTheme.bodySmall?.color,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 10),
+                                      horizontal: 6, vertical: 1),
                                   decoration: BoxDecoration(
                                     color: active
-                                        ? AppColors.primary
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(12),
+                                        ? Colors.white24
+                                        : AppColors.primary
+                                            .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Column(children: [
-                                    Text(cat.icon, style: const TextStyle(fontSize: 22)),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      cat.name,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 2,
-                                      style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w600,
-                                        color: active
-                                            ? Colors.white
-                                            : context.textTheme.bodySmall?.color,
-                                      ),
+                                  child: Text(
+                                    '$count',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: active
+                                          ? Colors.white
+                                          : AppColors.primary,
                                     ),
-                                  ]),
+                                  ),
                                 ),
-                              );
-                            },
+                              ],
+                            ),
                           ),
+                        );
+                      },
+                    ),
                   ),
 
                 // ── Right: Product grid ─────────────────────────────────
@@ -152,11 +190,13 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                             crossAxisCount: 2,
                             mainAxisSpacing: 10,
                             crossAxisSpacing: 10,
-                            childAspectRatio: 0.62,
+                            mainAxisExtent: 250,
                           ),
                           itemCount: 6,
                           itemBuilder: (ctx, _) => const ProductCardSkeleton(),
                         )
+                      : allProductsAsync.hasError
+                          ? const Center(child: Text('Unable to load products. Please try again.'))
                       : products.isEmpty
                           ? Center(
                               child: Column(
@@ -177,7 +217,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                                 crossAxisCount: 2,
                                 mainAxisSpacing: 10,
                                 crossAxisSpacing: 10,
-                                childAspectRatio: 0.62,
+                                mainAxisExtent: 250,
                               ),
                               itemCount: products.length,
                               itemBuilder: (_, i) =>
@@ -206,91 +246,101 @@ class _ProductCard extends ConsumerWidget {
     final inCart = ref.watch(isInCartProvider(product.id));
     final qty    = ref.watch(cartItemQtyProvider(product.id));
 
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push('/products/${product.id}'),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.divider),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Product image
-          ClipRRect(
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(16)),
-            child: ProductAvatar(
-              imageUrl:    product.imageUrl,
-              productName: product.name,
-              company:     product.company,
-              composition: product.composition,
-              size:        double.infinity,
-              radius:      0,
+          // Product image — fills width, fixed 120 height.
+          // Hero animation removed — was causing intermittent blank pages
+          // on the detail screen after cart state changes. Reliability > polish.
+          LayoutBuilder(
+            builder: (context, c) => ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(14)),
+              child: ProductAvatar(
+                imageUrl:    product.imageUrl,
+                productName: product.name,
+                company:     product.company,
+                composition: product.composition,
+                width:       c.maxWidth,
+                height:      120,
+                radius:      0,
+              ),
             ),
           ),
 
+          // Info section — takes remaining ~130px
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 12),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    product.composition,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.textTheme.bodySmall,
-                  ),
-                  Text(
-                    product.company,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.textTheme.bodySmall?.copyWith(
-                        color: AppColors.primary, fontWeight: FontWeight.w500),
-                  ),
-                  const Spacer(),
-                  if (product.mrp > 0)
-                    Text(product.mrp.inr,
-                        style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primaryDark)),
-
-                  const SizedBox(height: 6),
-                  // ADD / Qty control
+                  // Top: name + composition + company
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                      product.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          height: 1.2),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      product.composition,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textTheme.bodySmall?.copyWith(height: 1.2),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      product.company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textTheme.bodySmall?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w500,
+                          height: 1.2),
+                    ),
+                  ]),
+                  // Bottom: ADD button or qty control
                   !inCart
                       ? SizedBox(
                           width: double.infinity,
-                          height: 32,
+                          height: 34,
                           child: ElevatedButton(
-                            onPressed: product.inStock
-                                ? () => ref
-                                    .read(cartNotifierProvider.notifier)
-                                    .add(product)
-                                : null,
+                            onPressed: () => ref
+                                .read(cartNotifierProvider.notifier)
+                                .add(product),
                             style: ElevatedButton.styleFrom(
                               minimumSize: Size.zero,
                               padding: EdgeInsets.zero,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8)),
-                              textStyle: const TextStyle(fontSize: 13),
+                              textStyle: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600),
                             ),
-                            child: Text(product.inStock ? 'ADD' : 'Out of Stock'),
+                            child: const Text('ADD'),
                           ),
                         )
                       : _QtyControl(
@@ -308,6 +358,8 @@ class _ProductCard extends ConsumerWidget {
           ),
         ],
       ),
+        ),
+      ),
     );
   }
 }
@@ -319,7 +371,7 @@ class _QtyControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 32,
+    height: 34,
     decoration: BoxDecoration(
       border: Border.all(color: AppColors.primary),
       borderRadius: BorderRadius.circular(8),
@@ -329,7 +381,7 @@ class _QtyControl extends StatelessWidget {
       Expanded(child: Text('$qty',
           textAlign: TextAlign.center,
           style: const TextStyle(
-              fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 13))),
+              fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14))),
       _Btn(icon: Icons.add, onTap: onPlus),
     ]),
   );
@@ -345,8 +397,8 @@ class _Btn extends StatelessWidget {
     onTap: onTap,
     borderRadius: BorderRadius.circular(8),
     child: SizedBox(
-      width: 28, height: 32,
-      child: Icon(icon, size: 16, color: AppColors.primary),
+      width: 32, height: 34,
+      child: Icon(icon, size: 18, color: AppColors.primary),
     ),
   );
 }

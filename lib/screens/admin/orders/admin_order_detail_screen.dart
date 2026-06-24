@@ -51,14 +51,14 @@ class AdminOrderDetailScreen extends ConsumerWidget {
                   onPressed: () async {
                     final ok = await showDialog<bool>(
                       context: context,
-                      builder: (_) => AlertDialog(
+                      builder: (dialogCtx) => AlertDialog(
                         title: const Text('Cancel Order'),
                         content: Text('Cancel order ${order.orderNumber}?'),
                         actions: [
-                          TextButton(onPressed: () => context.pop(false),
+                          TextButton(onPressed: () => Navigator.pop(dialogCtx, false),
                               child: const Text('No')),
                           TextButton(
-                            onPressed: () => context.pop(true),
+                            onPressed: () => Navigator.pop(dialogCtx, true),
                             child: const Text('Yes, Cancel',
                                 style: TextStyle(color: AppColors.error)),
                           ),
@@ -149,17 +149,8 @@ class AdminOrderDetailScreen extends ConsumerWidget {
                       Text('${item.company}  •  Qty: ${item.quantity}',
                           style: context.textTheme.bodySmall),
                     ])),
-                    Text(item.subtotal.inr,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
                   ]),
                 )),
-                const Divider(),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  const Text('Total', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  Text(order.totalAmount.inr,
-                      style: const TextStyle(fontWeight: FontWeight.bold,
-                          fontSize: 17, color: AppColors.primary)),
-                ]),
               ]),
               const SizedBox(height: 12),
 

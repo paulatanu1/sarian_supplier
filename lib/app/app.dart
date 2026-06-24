@@ -23,7 +23,11 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   }
 
   Future<void> toggle() async {
-    state = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    final systemBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final effectivelyDark = state == ThemeMode.dark ||
+        (state == ThemeMode.system && systemBrightness == Brightness.dark);
+    state = effectivelyDark ? ThemeMode.light : ThemeMode.dark;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(K.prefTheme, state == ThemeMode.dark ? 'dark' : 'light');
   }
